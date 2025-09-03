@@ -1,0 +1,24 @@
+tphardening@tphardening-virtual-machine:~/terraform$ cat s3.tf
+resource "aws_s3_bucket" "logs_bucket" {
+  bucket = var.bucket_name
+  # acl    = "private"
+}
+
+resource "aws_s3_bucket_policy" "log_policy" {
+  bucket = aws_s3_bucket.logs_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+  #    Principal = {
+      Principal = {
+        AWS = "arn:aws:sts::211125622838:assumed-role/voclabs/user4066663=s.mekemjioaz@ecole-ipssi.net"
+      }
+
+ #    }
+      Action = "s3:PutObject"
+      Resource = "${aws_s3_bucket.logs_bucket.arn}/*"
+    }]
+  })
+}
