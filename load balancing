@@ -1,0 +1,61 @@
+tphardening@tphardening-virtual-machine:~/terraform$ cat alb_autoscaling.tf
+resource "aws_launch_configuration" "web_config" {
+  name_prefix   = "web-launch-"
+  image_id      = "ami-0360c520857e3138f"
+  instance_type = var.instance_type
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              yum install -y httpd aws-cli
+              systemctl start httpd
+              systemctl enable httpd
+              echo "Hello from AutoScaling EC2" > /var/www/html/index.html
+              aws s3 cp /var/log/messages s3://${var.bucket_name}/ec2-logs/messages.txt
+              EOF
+}
+
+resource "aws_autoscaling_group" "web_asg" {
+  launch_configuration = aws_launch_configuration.web_config.name
+  min_size             = var.min_size
+  max_size             = var.max_size
+  desired_capacity     = var.desired_capacity
+  vpc_zone_identifier  = [
+    "subnet-079d6ebb5cc8fb5d8",
+    "subnet-0c499e69973af0264"
+  ] # Remplace par ton subnet
+
+  tag {
+    key                 = "Name"
+    value               = "AutoScalingWeb"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_lb" "web_alb" {
+  name               = "web-alb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = [
+    "subnet-079d6ebb5cc8fb5d8",
+    "subnet-0c499e69973af0264"
+  ] # Remplace par tes subnets
+}
+
+resource "aws_lb_target_group" "web_tg" {
+  name     = "web-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = "vpc-00af6399c7b1c3a82" # Remplace par ton VPC
+}
+
+resource "aws_lb_listener" "web_listener" {
+  load_balancer_arn = aws_lb.web_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web_tg.arn
+  }
+}
